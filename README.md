@@ -1,17 +1,17 @@
 <!-- display a screenshot -->
 <div align="center">
 
-[<img src="src-tauri/icons/icon_256x256.png" alt="prompta logo" width=128>](https://www.prompta.dev)<br>
+<img src="src-tauri/icons/icon_256x256.png" alt="svelte chat ui logo" width=128><br>
 
-# Prompta
+# Svelte Chat UI
 
 </div>
 
 > [!NOTE] > **This project is no longer maintained.**
 >
-> [Raycast recently announced](https://www.raycast.com/changelog/1-100-0) that you can bring your own API key. Raycast offers a much more polished and actively maintained interface for chatting with LLMs. This change fully addresses the original problem that Prompta was designed to solve.
+> [Raycast recently announced](https://www.raycast.com/changelog/1-100-0) that you can bring your own API key. Raycast offers a much more polished and actively maintained interface for chatting with LLMs. This change fully addresses the original problem that this project was designed to solve.
 >
-> I created Prompta to solve my own need: a fast, keyboard-centric way to chat with LLMs using my own API key. For many months, it was my primary AI chat app and it was a joy to build something that solved my own problem and was useful to others.
+> I created this project to solve my own need: a fast, keyboard-centric way to chat with LLMs using my own API key. For many months, it was my primary AI chat app and it was a joy to build something that solved my own problem and was useful to others.
 >
 > For that reason, I've decided to archive the project. The code will remain available on GitHub and the [web app](https://chat.prompta.dev) will stay online, but I will no longer be working on it.
 >
@@ -24,7 +24,7 @@
 Yet another interface for chatting with LLMs via API.
 
 [Website](https://www.prompta.dev)
-| [Downloads](https://github.com/iansinnott/prompta/releases)
+| [Downloads](https://github.com/iansinnott/svelte-chat-ui/releases)
 | [Launch App](https://chat.prompta.dev)
 
 <div align="center">
@@ -52,7 +52,7 @@ Yet another interface for chatting with LLMs via API.
 ## How to use
 
 - In your web browser: [chat.prompta.dev](https://chat.prompta.dev)
-- Desktop app: download the latest build from [the releases page](https://github.com/iansinnott/prompta/releases)
+- Desktop app: download the latest build from [the releases page](https://github.com/iansinnott/svelte-chat-ui/releases)
 
 ### Running on macOS
 
