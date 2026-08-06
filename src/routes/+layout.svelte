@@ -19,8 +19,10 @@
   import FullScreenError from "$lib/components/FullScreenError.svelte";
   import { debounce, wrapError } from "$lib/utils";
   import DevTooling from "$lib/components/DevTooling.svelte";
-  import { openAiConfig } from "$lib/stores/stores/llmProvider";
+  import { openAiConfig, completeOpenRouterAuth } from "$lib/stores/stores/llmProvider";
   import ActionsMenu from "$lib/components/ActionsMenu.svelte";
+  import { readAuthCodeFromUrl, clearAuthCodeFromUrl } from "$lib/llm/openrouter";
+  import { toast } from "$lib/toast";
 
   const sys = getSystem();
   let startupError: Error | null = null;
@@ -94,6 +96,36 @@
 
   let isPendingImport = false;
 
+  /**
+   * If this page load is an OpenRouter OAuth callback, trade the code for a key.
+   * AIDEV-NOTE: Must run after the db is ready, because completing the auth
+   * refreshes the model list, which reads providers out of the database.
+   */
+  const handleOpenRouterCallback = async () => {
+    const code = readAuthCodeFromUrl();
+    if (!code) return;
+
+    // Strip the code immediately: it's single-use, and leaving it in the URL
+    // means a refresh replays a spent code (and exposes it to page scripts).
+    clearAuthCodeFromUrl();
+
+    try {
+      await completeOpenRouterAuth(code);
+      toast({
+        type: "success",
+        title: "Connected to OpenRouter",
+        message: "An API key was created and stored locally on this device.",
+      });
+    } catch (err: any) {
+      console.error("[openrouter] callback failed", err);
+      toast({
+        type: "error",
+        title: "OpenRouter sign-in failed",
+        message: err.message,
+      });
+    }
+  };
+
   onMount(async () => {
     try {
       await handleStartup();
@@ -102,7 +134,10 @@
       startupError = error;
       isPendingImport = true;
       localStorage.setItem("pendingImport", getLatestDbName() as string);
+      return;
     }
+
+    await handleOpenRouterCallback();
   });
 
   function isExternalUrl(href: any) {

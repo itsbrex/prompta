@@ -9,6 +9,7 @@
     messageText,
     pendingMessageStore,
     isNewThread,
+    showSettings,
   } from "$lib/stores/stores";
   import { ArrowUpCircle, XCircle } from "lucide-svelte";
   import ThreadMenuList from "$lib/components/ThreadMenuList.svelte";
@@ -161,7 +162,16 @@
   $: if ($syncStore.error) console.log("sync store ERR", $syncStore.error);
 
   $: hasModels = $chatModels.models.length > 0;
-  $: placeholder = !hasModels ? "Loading..." : sending ? "Enter to cancel" : "Ask Prompta...";
+  $: modelsLoading = $chatModels.loadingState === "loading" || $chatModels.loadingState === "init";
+  // With no built-in key-less provider, "no models" is the expected state for a
+  // new user rather than a transient one. Say so instead of spinning forever.
+  $: placeholder = !hasModels
+    ? modelsLoading
+      ? "Loading..."
+      : "Add an API key to start chatting"
+    : sending
+      ? "Enter to cancel"
+      : "Ask Prompta...";
 
   const isSyncSupported = true;
 </script>
@@ -284,9 +294,20 @@
           "appearance-none flex-1 w-full px-4 py-2 bg-transparent outline-none resize-none max-h-[50svh]"
         )}
       />
-      {#if !hasModels}
+      {#if !hasModels && modelsLoading}
         <div data-testid="ModelsLoading" class="flex items-center justify-center px-4 py-2">
           <SmallSpinner />
+        </div>
+      {:else if !hasModels}
+        <div class="flex items-center justify-center px-2 py-2">
+          <button
+            type="button"
+            data-testid="SetUpProviderButton"
+            class="font-bold px-3 py-2 text-xs uppercase leading-[22px] text-teal-300 hover:text-teal-200 whitespace-nowrap"
+            on:click={() => showSettings.set(true)}
+          >
+            Set up
+          </button>
         </div>
       {:else}
         <div class="flex items-end h-auto pl-2">

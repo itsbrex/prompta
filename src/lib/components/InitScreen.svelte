@@ -1,13 +1,19 @@
 <script lang="ts">
   import { showInitScreen } from "$lib/stores/stores";
-  import { gptProfileStore, verifyOpenAiApiKey } from "$lib/stores/stores/llmProfile";
   import { chatModels, llmProviders } from "$lib/stores/stores/llmProvider";
   import { toast } from "$lib/toast";
   import classNames from "classnames";
   import { onMount } from "svelte";
   import { fly } from "svelte/transition";
-  import IconOpenAI from "./IconOpenAI.svelte";
-  import IconAnthropic from "./IconAnthropic.svelte";
+  import IconOpenRouter from "./IconOpenRouter.svelte";
+  import {
+    beginOpenRouterAuth,
+    OPENROUTER_KEYS_URL,
+    OPENROUTER_PROVIDER_ID,
+  } from "$lib/llm/openrouter";
+  import { getSystem } from "$lib/gui";
+
+  const sys = getSystem();
 
   let _class: string = "";
   export { _class as class };
@@ -36,30 +42,14 @@
         return;
       }
 
-      if ($showInitScreen.provider === "openai") {
-        const valid = await verifyOpenAiApiKey(apiKey);
-
-        if (valid) {
-          llmProviders.updateProvider("openai", {
-            apiKey,
-            enabled: true,
-          });
-          buttonText = "Enabling OpenAI...";
-          await chatModels.refresh();
-          $gptProfileStore.model = "gpt-4o-mini";
-        } else {
-          throw new Error("Invalid API key");
-        }
-      } else if ($showInitScreen.provider === "anthropic") {
-        // Note: You may want to add key verification for Anthropic
-        llmProviders.updateProvider("anthropic", {
-          apiKey,
-          enabled: true,
-        });
-        buttonText = "Enabling Anthropic...";
-        await chatModels.refresh();
-        $gptProfileStore.model = "claude-3-5-sonnet-latest";
-      }
+      await llmProviders.updateProvider(OPENROUTER_PROVIDER_ID, {
+        apiKey,
+        enabled: true,
+      });
+      buttonText = "Enabling OpenRouter...";
+      // Let chatModels pick a valid default; OpenRouter's catalog is huge and
+      // changes often, so hardcoding a model id here would go stale.
+      await chatModels.refresh();
 
       $showInitScreen = { showing: false, provider: null };
     } catch (err: any) {
@@ -80,12 +70,37 @@
     $showInitScreen = { showing: false, provider: null };
   };
 
-  $: isOpenAI = $showInitScreen.provider === "openai";
-  $: isAnthropic = $showInitScreen.provider === "anthropic";
-  $: providerName = isOpenAI ? "OpenAI" : "Anthropic";
-  $: apiKeyLink = isOpenAI
-    ? "https://platform.openai.com/account/api-keys"
-    : "https://console.anthropic.com/account/keys";
+  const handleConnectOpenRouter = async () => {
+    try {
+      error = "";
+      connecting = true;
+      if (sys.isTauri) {
+        // AIDEV-NOTE: OAuth is browser-only. The desktop build has no HTTP
+        // origin for OpenRouter to redirect back to. See llm/openrouter.ts.
+        await sys.openExternal(OPENROUTER_KEYS_URL);
+        toast({
+          title: "Create a key in your browser",
+          message: "Paste it below once you have it.",
+          type: "info",
+        });
+        connecting = false;
+        return;
+      }
+      await beginOpenRouterAuth();
+    } catch (err: any) {
+      connecting = false;
+      error = err.message;
+      toast({ title: "Could not start OpenRouter sign-in", message: err.message, type: "error" });
+    }
+  };
+
+  let connecting = false;
+
+  // AIDEV-NOTE: OpenRouter is the only provider with a setup screen. Everything
+  // else is a user-added OpenAI-compatible endpoint, configured in settings.
+  const providerName = "OpenRouter";
+  const apiKeyLink = OPENROUTER_KEYS_URL;
+  const keyPlaceholder = "sk-or-...";
 </script>
 
 <div
@@ -104,11 +119,7 @@
     out:fly|global={{ duration: 500, y: 30, opacity: 0 }}
     class="mb-4"
   >
-    {#if isOpenAI}
-      <IconOpenAI class="!w-12 !h-12" />
-    {:else if isAnthropic}
-      <IconAnthropic class="!w-12 !h-12" />
-    {/if}
+    <IconOpenRouter class="!w-12 !h-12" />
   </div>
   <h1
     in:fly|global={{ duration: 300, delay: 200, y: 50, opacity: 0 }}
@@ -123,7 +134,24 @@
     out:fly|global={{ duration: 300, delay: 0, y: 50, opacity: 0 }}
     class="mt-8 max-w-[400px] flex flex-col space-y-4"
   >
-    <label for="sk"> To use {providerName}, enter an API key: </label>
+    <button
+        type="button"
+        data-testid="ConnectOpenRouterButton"
+        disabled={connecting}
+        on:click={handleConnectOpenRouter}
+        class="w-full flex items-center justify-center px-2 py-[6px] rounded bg-gradient-to-r to-indigo-800 from-blue-500 text-white font-semibold tracking-wide disabled:opacity-60"
+      >
+        <IconOpenRouter class="w-4 h-4 mr-2" />
+        {connecting ? "Redirecting to OpenRouter..." : "Sign in with OpenRouter"}
+      </button>
+      <p class="text-center text-xs opacity-60 leading-tight">
+        Creates an API key on your OpenRouter account. Nothing is sent to us.
+      </p>
+    <div class="flex items-center gap-3 opacity-50">
+      <span class="h-px flex-1 bg-white/30" />
+      <small>or paste a key</small>
+      <span class="h-px flex-1 bg-white/30" />
+    </div>
     <div
       class={classNames("rounded p-px gradient-border", {
         error: error,
@@ -135,7 +163,7 @@
         id="sk"
         class="input rounded w-full focus:ring-0 focus:outline-none"
         type="password"
-        placeholder={isOpenAI ? "sk-..." : "sk-ant-..."}
+        placeholder={keyPlaceholder}
         data-testid="APIKeyInput"
         bind:value={apiKey}
         bind:this={input}

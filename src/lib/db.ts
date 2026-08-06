@@ -329,7 +329,6 @@ export interface MinimalLLMClient {
 export type LLMProvider = Omit<LLMProviderRow, "created_at" | "enabled"> & {
   createdAt: Date;
   enabled: boolean;
-  createClient?: (opts: { apiKey: string; baseURL?: string }) => MinimalLLMClient;
 };
 
 export interface VecToFragRow {

@@ -1,25 +1,17 @@
-import { test as setup, expect, type Page } from "@playwright/test";
+import { expect, type Page } from "@playwright/test";
 
 /**
- * @NOTE This is the approach recommended for single-user auth. Since this is a
- * local app it should server our purpose.
+ * Seed a working provider before the app boots.
+ *
+ * There is no longer a key-less default provider, so any test that actually
+ * talks to a model has to bring a key. Built-in provider credentials live in
+ * localStorage, so we can set them up front rather than driving the UI.
  */
-
-const authFile = "playwright/.auth/user.json";
-const apiKey = process.env.TEST_OPENAI_API_KEY as string;
-
-export const fillOpenAIKey = async (page: Page, { store = true } = {}) => {
-  await page.goto("/");
-  const welcomeHeading = page.getByRole("heading", { name: "Quick setup" });
-  await expect(welcomeHeading).toBeVisible();
-  await page.getByTestId("APIKeyInput").fill(apiKey);
-  await page.getByTestId("SaveAPIKeyButton").click();
-  await expect(welcomeHeading).not.toBeVisible();
-
-  // End of authentication steps.
-  if (store) {
-    await page.context().storageState({ path: authFile });
-  }
+export const seedOpenRouterKey = async (page: Page, apiKey: string) => {
+  await page.addInitScript((key) => {
+    localStorage.setItem("llm-provider-openrouter-apiKey", key);
+    localStorage.setItem("llm-provider-openrouter-enabled", "true");
+  }, apiKey);
 };
 
 /**

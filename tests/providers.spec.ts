@@ -9,19 +9,62 @@ const openSettings = async (page: Page) => {
   await expect(page.getByText("Settings", { exact: true })).toBeVisible();
 };
 
-test("prompta enabled by default", async ({ page }) => {
+test("no provider is usable until the user supplies a key", async ({ page }) => {
+  await page.goto("/");
+
+  // Nothing to talk to, so the composer is inert and says so.
+  await expect(page.getByTestId("ChatInput")).toBeDisabled();
+  await expect(page.getByTestId("ChatInput")).toHaveAttribute(
+    "placeholder",
+    "Add an API key to start chatting"
+  );
+
+  await openSettings(page);
+
+  // OpenRouter is the only built-in provider, and it ships disabled: it can't be
+  // toggled on without a key.
+  // NOTE: the card heading also contains the Switch, so its text has trailing
+  // whitespace — match on a prefix rather than an exact string.
+  const toggle = page.getByRole("heading", { name: /^OpenRouter/ }).getByRole("switch");
+  await expect(toggle).toHaveAttribute("aria-checked", "false");
+  await expect(toggle).toBeDisabled();
+
+  // OpenAI and Anthropic are no longer special-cased — they're just custom endpoints.
+  await expect(page.getByRole("heading", { name: /^OpenAI/ })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: /^Anthropic/ })).toHaveCount(0);
+});
+
+test("openrouter offers oauth sign-in as an alternative to pasting a key", async ({ page }) => {
   await page.goto("/");
   await openSettings(page);
-  await expect(
-    page.getByRole("heading", { name: "Prompta", exact: true }).getByRole("switch")
-  ).toHaveAttribute("aria-checked", "true");
+
+  const connect = page.getByTestId("ConnectOpenRouterButton").first();
+  await expect(connect).toBeVisible();
+
+  // Don't complete the flow (it needs a real OpenRouter login) — just assert we
+  // hand off to OpenRouter with a correctly formed PKCE challenge.
+  let authUrl: string | null = null;
+  await page.route("https://openrouter.ai/auth**", async (route) => {
+    authUrl = route.request().url();
+    await route.abort();
+  });
+
+  await connect.click();
+  await expect.poll(() => authUrl).not.toBeNull();
+
+  const u = new URL(authUrl as unknown as string);
+  expect(u.searchParams.get("code_challenge_method")).toBe("S256");
+  expect(u.searchParams.get("code_challenge")).toMatch(/^[A-Za-z0-9_-]{43}$/);
+  expect(u.searchParams.get("callback_url")).toBeTruthy();
 });
 
 test("custom provider", async ({ page }) => {
   test.skip(!OPENROUTER_API_KEY, "OPENROUTER_API_KEY is not set");
 
   const customProvider = {
-    name: "OpenRouter",
+    // NOTE: deliberately not "OpenRouter" — that's now a built-in provider, and
+    // the heading locators below would match its card instead of this one.
+    name: "Custom Router",
     baseUrl: "https://openrouter.ai/api/v1",
     apiKey: OPENROUTER_API_KEY as string,
   };
@@ -34,7 +77,7 @@ test("custom provider", async ({ page }) => {
   await page.getByRole("button", { name: "Add custom" }).click();
   await page.getByPlaceholder("Name of the provider").fill(customProvider.name);
   await page.getByPlaceholder("Base URL (ex: https://api.").fill(customProvider.baseUrl);
-  await page.getByPlaceholder("API Key (Optional)").nth(1).fill(customProvider.apiKey);
+  await page.getByPlaceholder("API Key").last().fill(customProvider.apiKey);
   await page.getByRole("button", { name: "Save" }).click();
 
   // Wait for the provider to be added and check for the delete button

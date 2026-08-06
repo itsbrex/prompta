@@ -1,35 +1,21 @@
 import { expect, test, type Page } from "@playwright/test";
-import { sendMessageAndWaitForResponse } from "./test-helpers";
+import { sendMessageAndWaitForResponse, seedOpenRouterKey } from "./test-helpers";
 
-const apiKey = process.env.TEST_OPENAI_API_KEY as string;
+const openRouterKey = process.env.OPENROUTER_API_KEY as string;
 
 test("has chat input", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByTestId("ChatInput")).toBeVisible();
-  await page.getByTestId("ChatInput").click();
 });
 
 test("can send a message and get a response", async ({ page }) => {
+  test.skip(!openRouterKey, "OPENROUTER_API_KEY not set");
+
+  await seedOpenRouterKey(page, openRouterKey);
   await page.goto("/");
   const testMessage = `this is a test message. Please respond with the text "pong" to verify we're connected.`;
   await sendMessageAndWaitForResponse(page, { content: testMessage });
   await expect(page.locator(".ChatMessage")).toHaveCount(2);
-});
-
-test("can enable openai", async ({ page }) => {
-  test.skip(!apiKey, "TEST_OPENAI_API_KEY not set");
-
-  const btn = page.getByTestId("ModelPickerButton");
-  await page.goto("/");
-  await btn.click();
-  await expect(page.getByTestId("ModelPickerList")).toBeVisible();
-  await page.getByRole("option", { name: "OpenAI" }).click();
-  await page.getByTestId("APIKeyInput").fill(apiKey);
-  await page.keyboard.press("Enter");
-
-  const chatBox = page.getByPlaceholder("Ask Prompta...");
-  await expect(chatBox).toBeVisible({ timeout: 10000 });
-  await expect(btn).toContainText("gpt-3");
 });
 
 // This is a pseudo test, because I don't know how to trigger an actual
@@ -38,6 +24,9 @@ test("can enable openai", async ({ page }) => {
 // does not test the case where the previous database was actually corrupted,
 // which should still allow use of the app but will not recover data.
 test("migration screen should preserve chats through a reset", async ({ page }) => {
+  test.skip(!openRouterKey, "OPENROUTER_API_KEY not set");
+
+  await seedOpenRouterKey(page, openRouterKey);
   await page.addInitScript(() => {
     (window as any).__locks = navigator.locks;
     localStorage.__mocked = localStorage.__mocked || "false";

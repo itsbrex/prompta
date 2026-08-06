@@ -3,12 +3,10 @@ import { get, writable } from "svelte/store";
 import type { ClientOptions, OpenAI } from "openai";
 import { toast } from "$lib/toast";
 import { gptProfileStore } from "./llmProfile";
-import { showSettings } from ".";
-import IconOpenAi from "$lib/components/IconOpenAI.svelte";
-import IconBrain from "$lib/components/IconBrain.svelte";
-import IconAnthropic from "$lib/components/IconAnthropic.svelte";
+import IconOpenRouter from "$lib/components/IconOpenRouter.svelte";
 
 import { defaultProviders, getProviderClient } from "$lib/llm/openai";
+import { OPENROUTER_PROVIDER_ID, exchangeCodeForKey } from "$lib/llm/openrouter";
 
 type OpenAiAppConfig = Partial<ClientOptions> & {
   siteId: string;
@@ -78,12 +76,22 @@ export const isDefaultProvider = ({ id }: { id: string }) => {
   return defaultProviders.some((p) => p.id === id);
 };
 
+/**
+ * Display metadata for the built-in providers. Kept out of `defaultProviders`
+ * so that module stays free of Svelte component imports.
+ */
+export const builtInProviderMeta: Record<string, { label: string; icon: any }> = {
+  openrouter: {
+    label: "OpenRouter (sign in or paste a key)",
+    icon: IconOpenRouter,
+  },
+};
+
 export const llmProviders = (() => {
   const initialProviders = defaultProviders.map((x) => {
     // Get both enabled state and API key from localStorage
     const storedApiKey = localStorage.getItem(`llm-provider-${x.id}-apiKey`);
-    const isEnabled =
-      x.id === "prompta" || localStorage.getItem(`llm-provider-${x.id}-enabled`) === "true";
+    const isEnabled = localStorage.getItem(`llm-provider-${x.id}-enabled`) === "true";
 
     return {
       ...x,
@@ -165,44 +173,22 @@ export const llmProviders = (() => {
       return provider;
     },
 
+    /**
+     * Entries shown in the model picker for built-in providers that aren't
+     * usable yet. Selecting one opens the setup screen to collect an API key.
+     */
     getSpecialProviders: () => {
-      const models = get(chatModels).models;
-      const providers = [
-        ...(models.length
-          ? []
-          : [
-              {
-                value: "prompta",
-                label: "Enable Prompta",
-                icon: { component: IconBrain },
-                provider: llmProviders.byId("prompta")!,
-                isFavorite: false,
-              },
-            ]),
-        ...(!llmProviders.byId("openai")?.apiKey || !llmProviders.byId("openai")?.enabled
-          ? [
-              {
-                value: "openai",
-                label: "OpenAI (gpt-4o, o1, ...)",
-                icon: { component: IconOpenAi },
-                provider: llmProviders.byId("openai")!,
-                isFavorite: false,
-              },
-            ]
-          : []),
-        ...(!llmProviders.byId("anthropic")?.apiKey || !llmProviders.byId("anthropic")?.enabled
-          ? [
-              {
-                value: "anthropic",
-                label: "Anthropic (opus, sonnet, ...)",
-                icon: { component: IconAnthropic },
-                provider: llmProviders.byId("anthropic")!,
-              },
-            ]
-          : []),
-      ];
-
-      return providers;
+      return defaultProviders
+        .map((x) => llmProviders.byId(x.id))
+        .filter((p): p is LLMProvider => Boolean(p))
+        .filter((p) => !p.apiKey || !p.enabled)
+        .map((p) => ({
+          value: p.id,
+          label: builtInProviderMeta[p.id]?.label ?? p.name,
+          icon: { component: builtInProviderMeta[p.id]?.icon },
+          provider: p,
+          isFavorite: false,
+        }));
     },
 
     updateProvider: async (id: string, provider: Partial<LLMProvider>) => {
@@ -303,19 +289,9 @@ export const chatModels = (() => {
       // Make sure providers are up to date
       await llmProviders.invalidate();
 
-      const providers = get(llmProviders)
-        .providers.filter((x) => x.enabled)
-        .filter((x) => {
-          // These providers are present without being added, so we don't fetch for them unless they have an API key
-          if ((x.id === "openai" || x.id === "anthropic") && !x.apiKey) {
-            console.debug(
-              `${x.name} filtered out of providers because no API key. Implicitly disabled`
-            );
-            return false;
-          }
-
-          return true;
-        });
+      // Every provider requires a user-supplied API key, so a provider without
+      // one is implicitly unusable no matter what its enabled flag says.
+      const providers = get(llmProviders).providers.filter((x) => x.enabled && x.apiKey);
 
       console.debug(
         "refreshing providers",
@@ -373,23 +349,30 @@ export const chatModels = (() => {
         if (!_chatModels.some((x) => x.id === currentProfile.model)) {
           const nextModel = _chatModels[0];
           if (nextModel) {
+            // Only worth mentioning if they actually lost a model they had
+            // picked. A new user going from nothing to something hasn't.
+            if (currentProfile.model) {
+              toast({
+                title: "Model not found",
+                message: `The model you were using (${currentProfile.model}) was not found. Defaulting to the next available model (${nextModel.id}).`,
+                type: "info",
+              });
+              console.warn(`Model not found: ${currentProfile.model}. Defaulting to ${nextModel.id}`);
+            }
+            gptProfileStore.set({ ...currentProfile, model: nextModel.id });
+          } else if (providers.length) {
+            // They have providers configured but none produced a usable model,
+            // which is a genuine failure worth surfacing.
             toast({
-              title: "Model not found",
-              message: `The model you were using (${currentProfile.model}) was not found. Defaulting to the next available model (${nextModel.id}).`,
-              type: "info",
-            });
-            console.warn(
-              `Model not found: ${currentProfile.model}. Defaulting to ${_chatModels[0].id}`
-            );
-            gptProfileStore.set({ ...currentProfile, model: _chatModels[0].id });
-          } else {
-            toast({
-              title: "No active LLM providers",
-              message: `Please enable at least one LLM provider in the settings to use the app.`,
+              title: "No models available",
+              message: `None of your enabled providers returned any models. Check your API keys in settings.`,
               type: "error",
             });
-            showSettings.set(true);
           }
+          // AIDEV-NOTE: Zero configured providers is the expected starting
+          // state now that every provider needs a user-supplied key. Don't
+          // treat it as an error and don't hijack the UI with the settings
+          // modal — the composer shows a "Set up" affordance instead.
         }
 
         localStorage.setItem(lsKey, JSON.stringify(_chatModels));
@@ -407,3 +390,14 @@ export const chatModels = (() => {
 })();
 
 export const modelPickerOpen = writable(false);
+
+/**
+ * Finish the OpenRouter OAuth handshake: trade the one-time code for a key,
+ * store it like any other API key, and load the newly available models.
+ */
+export const completeOpenRouterAuth = async (code: string) => {
+  const apiKey = await exchangeCodeForKey(code);
+  await llmProviders.updateProvider(OPENROUTER_PROVIDER_ID, { apiKey, enabled: true });
+  await chatModels.refresh();
+  return apiKey;
+};

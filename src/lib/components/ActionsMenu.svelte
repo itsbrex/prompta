@@ -32,14 +32,14 @@
   import IconTrash from "./IconTrash.svelte";
   import { toast } from "$lib/toast";
   import { chatModels, llmProviders, modelPickerOpen } from "$lib/stores/stores/llmProvider";
-  import IconOpenAi from "./IconOpenAI.svelte";
   import IconBrain from "./IconBrain.svelte";
   import { Command as CommandIcon } from "lucide-svelte";
   import { goto } from "$app/navigation";
   import { page } from "$app/stores";
-  import IconAnthropic from "./IconAnthropic.svelte";
   import IconGitHubSponsor from "./IconGitHubSponsor.svelte";
   import IconGitHub from "./IconGitHub.svelte";
+  import IconOpenRouter from "./IconOpenRouter.svelte";
+  import { OPENROUTER_PROVIDER_ID } from "$lib/llm/openrouter";
   let _class: string = "";
   export { _class as class };
 
@@ -87,25 +87,14 @@
       execute: currentChatThread.regenerateResponse,
     },
     {
-      name: "Enable OpenAI",
+      name: "Connect OpenRouter",
       when: () => {
-        const oai = llmProviders.byId("openai");
-        return !oai?.apiKey && isHomePage();
+        const openrouter = llmProviders.byId(OPENROUTER_PROVIDER_ID);
+        return !openrouter?.apiKey && isHomePage();
       },
-      icon: IconOpenAi,
+      icon: IconOpenRouter,
       execute: () => {
-        showInitScreen.set({ showing: true, provider: "openai" });
-      },
-    },
-    {
-      name: "Enable Anthropic",
-      when: () => {
-        const anthropic = llmProviders.byId("anthropic");
-        return !anthropic?.apiKey && isHomePage();
-      },
-      icon: IconAnthropic,
-      execute: () => {
-        showInitScreen.set({ showing: true, provider: "anthropic" });
+        showInitScreen.set({ showing: true, provider: OPENROUTER_PROVIDER_ID });
       },
     },
     {

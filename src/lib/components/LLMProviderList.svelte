@@ -1,36 +1,20 @@
 <script lang="ts">
   import LlmProviderForm from "./LLMProviderForm.svelte";
-  import { llmProviders } from "$lib/stores/stores/llmProvider";
+  import { llmProviders, isDefaultProvider } from "$lib/stores/stores/llmProvider";
   import { Button } from "./ui/button";
 
   $: showNewProviderButton = $llmProviders.providers.at(-1)?.id !== "new";
-  $: prompta = $llmProviders.providers.find((p) => p.id === "prompta");
-  $: openai = $llmProviders.providers.find((p) => p.id === "openai");
-  $: anthropic = $llmProviders.providers.find((p) => p.id === "anthropic");
-  $: customProviders = $llmProviders.providers.filter(
-    (p) =>
-      !llmProviders
-        .getSpecialProviders()
-        .map((x) => x.value)
-        .includes(p.id)
-  );
+  $: builtInProviders = $llmProviders.providers.filter(isDefaultProvider);
+  // AIDEV-NOTE: Filter on isDefaultProvider, NOT getSpecialProviders(). The
+  // latter only lists built-ins that still need a key, so once one is
+  // configured it would fall through and render a second time as "custom".
+  $: customProviders = $llmProviders.providers.filter((p) => !isDefaultProvider(p));
 </script>
 
 <div class="flex flex-col space-y-4">
-  <!-- Prompta Section -->
-  {#if prompta}
-    <LlmProviderForm provider={prompta} />
-  {/if}
-
-  <!-- OpenAI Section -->
-  {#if openai}
-    <LlmProviderForm provider={openai} />
-  {/if}
-
-  <!-- Anthropic Section -->
-  {#if anthropic}
-    <LlmProviderForm provider={anthropic} />
-  {/if}
+  {#each builtInProviders as provider (provider.id)}
+    <LlmProviderForm {provider} />
+  {/each}
 
   <!-- Custom Providers Section -->
   {#if customProviders.length > 0}
@@ -45,8 +29,10 @@
     >
     <p class="leading-tight">
       <small>
-        You can use Prompta with any 3rd party tools that support the OpenAI API such as Helicone or
-        local LLMs that expose OpenAI compatible APIs like <a
+        Add any endpoint that speaks the OpenAI API — OpenAI itself (<code
+          >https://api.openai.com/v1/</code
+        >), a proxy like Helicone, or a local LLM served by
+        <a
           href="https://github.com/mudler/LocalAI"
           class="text-blue-200 hover:underline"
           target="_blank"

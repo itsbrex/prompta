@@ -7,8 +7,14 @@
   import type { Component as SvelteComponent } from "svelte";
   import IconBrain from "$lib/components/IconBrain.svelte";
   import { onMount } from "svelte";
-  import { llmProviders, chatModels, modelPickerOpen } from "$lib/stores/stores/llmProvider";
-  import IconOpenAi from "./IconOpenAI.svelte";
+  import {
+    llmProviders,
+    chatModels,
+    modelPickerOpen,
+    isDefaultProvider,
+  } from "$lib/stores/stores/llmProvider";
+  import IconOpenRouter from "./IconOpenRouter.svelte";
+  import type { BuiltInProviderId } from "$lib/stores/stores";
   import { gptProfileStore } from "$lib/stores/stores/llmProfile";
   import { showInitScreen } from "$lib/stores/stores";
   import { toast } from "$lib/toast";
@@ -16,7 +22,6 @@
   import { Star } from "lucide-svelte";
   import { Preferences } from "$lib/db";
   import { writable } from "svelte/store";
-  import IconAnthropic from "./IconAnthropic.svelte";
 
   let _class: string = "";
   export { _class as class };
@@ -53,12 +58,8 @@
       const provider = llmProviders.byId(x.provider.id);
       let icon: IconSource | undefined = undefined;
 
-      if (provider?.id === "prompta") {
-        icon = { component: IconBrain, class: "w-5 h-5 text-[#30CEC0] " };
-      } else if (provider?.id === "openai") {
-        icon = { component: IconOpenAi, class: "" };
-      } else if (provider?.id === "anthropic") {
-        icon = { component: IconAnthropic, class: "" };
+      if (provider?.id === "openrouter") {
+        icon = { component: IconOpenRouter, class: "w-5 h-5 text-[#30CEC0] " };
       }
 
       return {
@@ -98,17 +99,10 @@
   function handleChange(x: string) {
     $modelPickerOpen = false;
 
-    if (["openai", "anthropic"].includes(x)) {
-      showInitScreen.set({ showing: true, provider: x as "openai" | "anthropic" });
-      return;
-    } else if (x === "prompta") {
-      llmProviders.updateProvider("prompta", {
-        enabled: true,
-      });
-      toast({ title: "Enabling Prompta...", type: "success" });
-      chatModels.refresh().then(() => {
-        toast({ title: "Prompta Enabled", type: "success" });
-      });
+    // Selecting an unconfigured built-in provider opens its setup screen
+    // rather than selecting a model.
+    if (isDefaultProvider({ id: x })) {
+      showInitScreen.set({ showing: true, provider: x as BuiltInProviderId });
       return;
     }
 

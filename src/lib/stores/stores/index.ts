@@ -25,9 +25,12 @@ import { activeProfileName, getOpenAi, gptProfileStore } from "./llmProfile";
 import { getProviderClient } from "$lib/llm/openai";
 
 export const showSettings = writable(false);
+
+export type BuiltInProviderId = "openrouter";
+
 export const showInitScreen = writable<{
   showing: boolean;
-  provider: "openai" | "anthropic" | null;
+  provider: BuiltInProviderId | null;
 }>({
   showing: false,
   provider: null,

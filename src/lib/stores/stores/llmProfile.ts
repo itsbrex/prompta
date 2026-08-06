@@ -19,7 +19,10 @@ export const activeProfileName = writable("default");
 export const profilesStore = persistentStore<{ [key: string]: GPTProfile }>("profile", {
   default: {
     name: "default",
-    model: "prompta/gemini-flash-1.5-8b", // Default for new users. Existing users should retain persisted choice of openai gpt-*
+    // No default model: every provider needs a user-supplied key, so a new user
+    // has nothing to talk to until they configure one. chatModels.refresh()
+    // selects the first available model once a provider is set up.
+    model: "",
     systemMessage: DEFAULT_SYSTEM_MESSAGE,
   },
 });
@@ -70,8 +73,8 @@ export const getOpenAi = () => {
 
   const { apiKey, baseUrl } = provider;
 
-  if (!apiKey && provider.id === "openai") {
-    throw new Error("No API key for OpenAI");
+  if (!apiKey) {
+    throw new Error(`No API key for ${provider.name}`);
   }
 
   if (!baseUrl) {
@@ -106,15 +109,3 @@ export const verifyOpenAICompatibileProvider = async ({
   }
 };
 
-/**
- * This is something of a legacy function. Initially it was for openai only, but
- * i genericized it to check other endpoints.
- */
-export const verifyOpenAiApiKey = async (apiKey: string) => {
-  const conf = llmProviders.byId("openai");
-  const baseUrl = conf?.baseUrl;
-  if (!baseUrl) {
-    return false;
-  }
-  return verifyOpenAICompatibileProvider({ apiKey, baseUrl });
-};
