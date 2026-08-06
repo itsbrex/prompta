@@ -52,6 +52,17 @@ jobs:
         with:
           bun-version: latest
 
+      # Pin Node so native postinstall scripts compile against headers they
+      # understand. `better-sqlite3@9.2.2` fails to build against Node 24 (the
+      # runner default since 2026): node-gyp chokes on the C++20 `concept` /
+      # `requires` syntax in Node's bundled cppgc headers. That package is only
+      # used by sync-server/, not by the desktop app, but `bun install` still
+      # builds it. Node 20 is what the last successful release used.
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
       - name: Install frontend dependencies
         run: bun install
 
